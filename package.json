@@ -1,26 +1,30 @@
 {
   "name": "@zondax/ledger-icp",
-  "version": "0.1.0",
+  "version": "3.2.8",
   "description": "Node API for the Internet Computer App (Ledger Nano S/X/S+/Stax/Flex)",
   "keywords": [
     "Zondax",
     "Ledger",
+    "Typescript",
     "Javascript",
     "Icp"
   ],
-  "homepage": "https://github.com/zondax/ledger-icp",
+  "homepage": "https://github.com/zondax/ledger-icp-js",
   "bugs": {
-    "url": "https://github.com/zondax/ledger-icp/issues"
+    "url": "https://github.com/zondax/ledger-icp-js/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zondax/ledger-icp.git"
+    "url": "git+https://github.com/zondax/ledger-icp-js.git"
   },
   "license": "Apache-2.0",
   "author": "Zondax AG",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "typings": "./dist/index.d.ts",
+  "files": [
+    "dist/**"
+  ],
   "scripts": {
     "build": "tsc",
     "format": "FORCE_COLOR=1 prettier --write . && sort-package-json",

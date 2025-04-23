@@ -1,0 +1,52 @@
+{
+  "name": "@zondax/ledger-icp",
+  "version": "0.1.0",
+  "description": "Node API for the Internet Computer App (Ledger Nano S/X/S+/Stax/Flex)",
+  "keywords": [
+    "Zondax",
+    "Ledger",
+    "Javascript",
+    "Icp"
+  ],
+  "homepage": "https://github.com/zondax/ledger-icp",
+  "bugs": {
+    "url": "https://github.com/zondax/ledger-icp/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zondax/ledger-icp.git"
+  },
+  "license": "Apache-2.0",
+  "author": "Zondax AG",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "typings": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "format": "FORCE_COLOR=1 prettier --write . && sort-package-json",
+    "format:check": "FORCE_COLOR=1 prettier --check .",
+    "lint": "eslint .",
+    "lint:fix": "eslint --fix .",
+    "test": "yarn build && jest",
+    "upgrade": "bunx npm-check-updates -i"
+  },
+  "dependencies": {
+    "@zondax/ledger-js": "^0.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.1",
+    "@typescript-eslint/eslint-plugin": "^8.31.0",
+    "@typescript-eslint/parser": "^8.31.0",
+    "eslint": "^9.25.1",
+    "eslint-config-prettier": "^10.1.2",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-tsdoc": "^0.4.0",
+    "eslint-plugin-unused-imports": "^4.1.4",
+    "prettier": "^3.5.3",
+    "sort-package-json": "^2.10.1",
+    "typescript": "^5.8.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

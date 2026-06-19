@@ -1,0 +1,6 @@
+[tools]
+node = "22"
+
+[tasks.ci_postinstall]
+description = "Install dependencies for CI"
+run = "yarn install --frozen-lockfile"

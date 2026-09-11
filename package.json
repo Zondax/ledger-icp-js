@@ -35,7 +35,7 @@
     "upgrade": "bunx npm-check-updates -i"
   },
   "dependencies": {
-    "@zondax/ledger-js": "^0.2.2"
+    "@zondax/ledger-js": "github:Zondax/ledger-js#feat/dmk-transport"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",

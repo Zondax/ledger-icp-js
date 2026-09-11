@@ -99,7 +99,15 @@ export default class InternetComputerApp extends GenericApp {
       .then(processGetAddrResponse, processErrorResponse);
   }
 
-  async signSendChunk(
+  /**
+   * Sends one chunk of a signing payload.
+   *
+   * Renamed from `signSendChunk` at the `@zondax/ledger-js` 1.x upgrade: BaseApp gained a
+   * `protected signSendChunk(ins, chunkIdx, chunkNum, chunk)` of its own, and this method
+   * takes different arguments and returns a different shape, so the names collided. The
+   * behaviour here is unchanged.
+   */
+  async signSendChunkTx(
     chunkIdx: number,
     chunkNum: number,
     chunk: Buffer,
@@ -167,7 +175,7 @@ export default class InternetComputerApp extends GenericApp {
     txtype: number,
   ): Promise<ResponseSign> {
     const chunks = this.prepareChunks(path, message);
-    return await this.signSendChunk(
+    return await this.signSendChunkTx(
       1,
       chunks.length,
       chunks[0],
@@ -181,7 +189,7 @@ export default class InternetComputerApp extends GenericApp {
 
       for (let i = 1; i < chunks.length; i += 1) {
         // eslint-disable-next-line no-await-in-loop
-        result = await this.signSendChunk(
+        result = await this.signSendChunkTx(
           1 + i,
           chunks.length,
           chunks[i],
@@ -272,7 +280,7 @@ export default class InternetComputerApp extends GenericApp {
     request.copy(message, 8 + checkStatus.byteLength);
     console.log(message.toString("hex"));
     const chunks = this.prepareChunks(path, message);
-    return await this.signSendChunk(
+    return await this.signSendChunkTx(
       1,
       chunks.length,
       chunks[0],
@@ -370,7 +378,7 @@ export default class InternetComputerApp extends GenericApp {
     data: string,
   ): Promise<ResponseSign> {
     const chunks = this.prepareChunks(path, Buffer.from(data, "hex"));
-    return await this.signSendChunk(
+    return await this.signSendChunkTx(
       1,
       chunks.length,
       chunks[0],
@@ -383,7 +391,7 @@ export default class InternetComputerApp extends GenericApp {
       };
       for (let i = 1; i < chunks.length; i += 1) {
         // eslint-disable-next-line no-await-in-loop
-        result = await this.signSendChunk(
+        result = await this.signSendChunkTx(
           1 + i,
           chunks.length,
           chunks[i],

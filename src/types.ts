@@ -1,4 +1,18 @@
-import { type INSGeneric, type ResponseBase } from "@zondax/ledger-js";
+import { type INSGeneric } from "@zondax/ledger-js";
+
+/**
+ * Base shape every response in this SDK carries.
+ *
+ * `@zondax/ledger-js` used to export this and dropped it at 1.0, when BaseApp moved from
+ * returning errors as values to throwing `ResponseError`. Declaring it here keeps this
+ * package's public API exactly as it was -- consumers still read `returnCode` and
+ * `errorMessage` off every response -- so upgrading the dependency is not a breaking
+ * change for them.
+ */
+export interface ResponseBase {
+  errorMessage: string;
+  returnCode: number;
+}
 
 export interface ICPIns extends INSGeneric {
   GET_VERSION: 0x00;

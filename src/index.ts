@@ -19,6 +19,9 @@ import {
   type ICPIns,
   type TokenInfo,
   type ResponseAddress,
+  type ResponseVersion,
+  type ResponseAppInfo,
+  type ResponseDeviceInfo,
   type ResponseSign,
   type ResponseSignUpdateCall,
   type ResponseTokenRegistry,
@@ -31,7 +34,8 @@ import GenericApp, {
   LedgerError,
   PAYLOAD_TYPE,
   processErrorResponse,
-  type Transport,
+  ResponseError,
+  type LedgerTransport,
 } from "@zondax/ledger-js";
 import {
   processGetAddrResponse,
@@ -44,7 +48,7 @@ export { SIGN_VALUES_P2 } from "./consts";
 
 export default class InternetComputerApp extends GenericApp {
   readonly INS!: ICPIns;
-  constructor(transport: Transport) {
+  constructor(transport: LedgerTransport) {
     if (transport == null) throw new Error("Transport has not been defined");
 
     const params: ConstructorParams = {
@@ -68,6 +72,78 @@ export default class InternetComputerApp extends GenericApp {
       chunkSize: 250,
     };
     super(transport, params);
+  }
+
+  /**
+   * Returns the version with `returnCode` / `errorMessage`, as this SDK always has.
+   *
+   * BaseApp 1.x throws a ResponseError on failure and returns a bare version on success.
+   * This SDK's contract -- relied on by its zemu tests and by dfinity's hardware-wallet-cli
+   * -- is that both paths resolve to a value carrying `returnCode`. Restored here.
+   */
+  async getVersion(): Promise<ResponseVersion> {
+    try {
+      const version = await super.getVersion();
+      return {
+        ...version,
+        returnCode: LedgerError.NoErrors,
+        errorMessage: errorCodeToString(LedgerError.NoErrors),
+      };
+    } catch (e) {
+      return processErrorResponse(e);
+    }
+  }
+
+  /**
+   * Returns app info with `returnCode` / `errorMessage`, as this SDK always has.
+   *
+   * One special case is preserved from the 0.2.x contract: an unrecognised format ID used
+   * to come back as `returnCode: 0x9001`. BaseApp 1.x throws a ResponseError
+   * (TechnicalProblem) for it instead, so that is mapped back to the historical code.
+   */
+  async appInfo(): Promise<ResponseAppInfo> {
+    try {
+      const info = await super.appInfo();
+      return {
+        ...info,
+        returnCode: LedgerError.NoErrors,
+        errorMessage: errorCodeToString(LedgerError.NoErrors),
+      };
+    } catch (e) {
+      if (
+        e instanceof ResponseError &&
+        e.errorMessage === "Format ID not recognized"
+      ) {
+        return { returnCode: 0x9001, errorMessage: e.errorMessage };
+      }
+      return processErrorResponse(e);
+    }
+  }
+
+  /**
+   * Returns device info with `returnCode` / `errorMessage`, as this SDK always has.
+   *
+   * `0x6e00` means the command was sent while an app was open rather than the dashboard.
+   * The 0.2.x contract returned it as a value with a specific message; BaseApp 1.x throws
+   * it, so it is mapped back here with the same wording.
+   */
+  async deviceInfo(): Promise<ResponseDeviceInfo> {
+    try {
+      const info = await super.deviceInfo();
+      return {
+        ...info,
+        returnCode: LedgerError.NoErrors,
+        errorMessage: errorCodeToString(LedgerError.NoErrors),
+      };
+    } catch (e) {
+      if (e instanceof ResponseError && e.returnCode === 0x6e00) {
+        return {
+          returnCode: 0x6e00,
+          errorMessage: "This command is only available in the Dashboard",
+        };
+      }
+      return processErrorResponse(e);
+    }
   }
 
   async getAddressAndPubKey(path: string): Promise<ResponseAddress> {
@@ -99,7 +175,15 @@ export default class InternetComputerApp extends GenericApp {
       .then(processGetAddrResponse, processErrorResponse);
   }
 
-  async signSendChunk(
+  /**
+   * Sends one chunk of a signing payload.
+   *
+   * Renamed from `signSendChunk` at the `@zondax/ledger-js` 1.x upgrade: BaseApp gained a
+   * `protected signSendChunk(ins, chunkIdx, chunkNum, chunk)` of its own, and this method
+   * takes different arguments and returns a different shape, so the names collided. The
+   * behaviour here is unchanged.
+   */
+  async signSendChunkTx(
     chunkIdx: number,
     chunkNum: number,
     chunk: Buffer,
@@ -167,7 +251,7 @@ export default class InternetComputerApp extends GenericApp {
     txtype: number,
   ): Promise<ResponseSign> {
     const chunks = this.prepareChunks(path, message);
-    return await this.signSendChunk(
+    return await this.signSendChunkTx(
       1,
       chunks.length,
       chunks[0],
@@ -181,7 +265,7 @@ export default class InternetComputerApp extends GenericApp {
 
       for (let i = 1; i < chunks.length; i += 1) {
         // eslint-disable-next-line no-await-in-loop
-        result = await this.signSendChunk(
+        result = await this.signSendChunkTx(
           1 + i,
           chunks.length,
           chunks[i],
@@ -272,7 +356,7 @@ export default class InternetComputerApp extends GenericApp {
     request.copy(message, 8 + checkStatus.byteLength);
     console.log(message.toString("hex"));
     const chunks = this.prepareChunks(path, message);
-    return await this.signSendChunk(
+    return await this.signSendChunkTx(
       1,
       chunks.length,
       chunks[0],
@@ -370,7 +454,7 @@ export default class InternetComputerApp extends GenericApp {
     data: string,
   ): Promise<ResponseSign> {
     const chunks = this.prepareChunks(path, Buffer.from(data, "hex"));
-    return await this.signSendChunk(
+    return await this.signSendChunkTx(
       1,
       chunks.length,
       chunks[0],
@@ -383,7 +467,7 @@ export default class InternetComputerApp extends GenericApp {
       };
       for (let i = 1; i < chunks.length; i += 1) {
         // eslint-disable-next-line no-await-in-loop
-        result = await this.signSendChunk(
+        result = await this.signSendChunkTx(
           1 + i,
           chunks.length,
           chunks[i],

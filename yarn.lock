@@ -308,7 +308,7 @@
 
 "@zondax/ledger-js@github:Zondax/ledger-js#feat/dmk-transport":
   version "0.0.0"
-  resolved "https://codeload.github.com/Zondax/ledger-js/tar.gz/4e9cb4ced4c94de3ee036c2e60d23e152739682b"
+  resolved "https://codeload.github.com/Zondax/ledger-js/tar.gz/848aa77a18ace3e8f561370a7ed90cfe321e5551"
 
 acorn-jsx@^5.3.2:
   version "5.3.2"

@@ -63,3 +63,36 @@ export interface ResponseTokenInfo extends ResponseBase {
 export interface ResponseTokenRegistry extends ResponseBase {
   tokenRegistry?: TokenInfo[];
 }
+
+/**
+ * The three responses inherited from BaseApp, with the `returnCode` / `errorMessage`
+ * fields this SDK has always carried. `@zondax/ledger-js` 1.x removed them from its own
+ * versions of these types when BaseApp moved to throwing; InternetComputerApp overrides
+ * the three methods to keep returning them, so these are the shapes callers actually see.
+ */
+export interface ResponseVersion extends ResponseBase {
+  testMode?: boolean;
+  major?: number;
+  minor?: number;
+  patch?: number;
+  deviceLocked?: boolean;
+  targetId?: string;
+}
+
+export interface ResponseAppInfo extends ResponseBase {
+  appName?: string;
+  appVersion?: string;
+  flagLen?: number;
+  flagsValue?: number;
+  flagRecovery?: boolean;
+  flagSignedMcuCode?: boolean;
+  flagOnboarded?: boolean;
+  flagPINValidated?: boolean;
+}
+
+export interface ResponseDeviceInfo extends ResponseBase {
+  targetId?: string;
+  seVersion?: string;
+  flag?: string;
+  mcuVersion?: string;
+}

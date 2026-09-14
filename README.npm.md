@@ -70,7 +70,12 @@ Smaller behaviour changes worth knowing:
 - An invalid derivation path now rejects with a `ResponseError` carrying
   `returnCode: 0xFFFFFFFF` and the message `Invalid path length. (e.g "m/44'/5757'/5'/0/3")`,
   where 3.x rejected with a plain `Error` and no code.
-- `getVersion().targetId` comes back as `""` rather than `"0"` when the device reports none.
+- **`getVersion().targetId` changes representation.** 3.x returned a _number_ built from
+  the four raw bytes -- a device reporting target `0x33000004` came back as `855638020`,
+  and `0` when none was sent, despite the declared type saying `string`. 4.0.0 returns an
+  8-character hex string, `"33000004"`, and `""` when none was sent. TypeScript consumers
+  see no type change, so nothing warns them; comparisons and arithmetic on this field break
+  silently.
 
 ## Notes
 

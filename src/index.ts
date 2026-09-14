@@ -33,7 +33,6 @@ import GenericApp, {
   errorCodeToString,
   LedgerError,
   PAYLOAD_TYPE,
-  processErrorResponse,
   ResponseError,
   type LedgerTransport,
 } from "@zondax/ledger-js";
@@ -41,6 +40,7 @@ import {
   processGetAddrResponse,
   processTokenRegistrySizeResponse,
   processTokenInfoResponse,
+  toResponse,
 } from "./helper";
 
 export * from "./types";
@@ -102,7 +102,7 @@ export default class InternetComputerApp<
         errorMessage: errorCodeToString(LedgerError.NoErrors),
       };
     } catch (e) {
-      return processErrorResponse(e);
+      return toResponse(e);
     }
   }
 
@@ -122,13 +122,18 @@ export default class InternetComputerApp<
         errorMessage: errorCodeToString(LedgerError.NoErrors),
       };
     } catch (e) {
+      // ledger-js attaches no structured marker to this one -- it throws
+      // `ResponseError(TechnicalProblem, 'Format ID not recognized')`, so the message text
+      // is the only thing telling it apart from any other technical problem. Guard on the
+      // code too, and note that a reword upstream turns this back into a plain 0x6F00.
       if (
         e instanceof ResponseError &&
+        e.returnCode === LedgerError.TechnicalProblem &&
         e.errorMessage === "Format ID not recognized"
       ) {
         return { returnCode: 0x9001, errorMessage: e.errorMessage };
       }
-      return processErrorResponse(e);
+      return toResponse(e);
     }
   }
 
@@ -154,7 +159,7 @@ export default class InternetComputerApp<
           errorMessage: "This command is only available in the Dashboard",
         };
       }
-      return processErrorResponse(e);
+      return toResponse(e);
     }
   }
 
@@ -169,7 +174,7 @@ export default class InternetComputerApp<
         serializedPath,
         [0x9000],
       )
-      .then(processGetAddrResponse, processErrorResponse);
+      .then(processGetAddrResponse, toResponse);
   }
 
   async showAddressAndPubKey(path: string): Promise<ResponseAddress> {
@@ -184,7 +189,7 @@ export default class InternetComputerApp<
         serializedPath,
         [LedgerError.NoErrors],
       )
-      .then(processGetAddrResponse, processErrorResponse);
+      .then(processGetAddrResponse, toResponse);
   }
 
   /**
@@ -254,7 +259,7 @@ export default class InternetComputerApp<
           returnCode,
           errorMessage,
         };
-      }, processErrorResponse);
+      }, toResponse);
   }
 
   async sign(
@@ -289,7 +294,7 @@ export default class InternetComputerApp<
         }
       }
       return result;
-    }, processErrorResponse);
+    }, toResponse);
   }
 
   async signSendChunkUpdateCall(
@@ -350,7 +355,7 @@ export default class InternetComputerApp<
           returnCode,
           errorMessage,
         };
-      }, processErrorResponse);
+      }, toResponse);
   }
 
   async signUpdateCall(
@@ -393,7 +398,7 @@ export default class InternetComputerApp<
         }
       }
       return result;
-    }, processErrorResponse);
+    }, toResponse);
   }
 
   async sendChunk(
@@ -427,7 +432,7 @@ export default class InternetComputerApp<
           returnCode,
           errorMessage,
         };
-      }, processErrorResponse);
+      }, toResponse);
   }
 
   async sendData(
@@ -457,7 +462,7 @@ export default class InternetComputerApp<
         }
         return result;
       },
-      processErrorResponse,
+      toResponse,
     );
   }
 
@@ -491,7 +496,7 @@ export default class InternetComputerApp<
         }
       }
       return result;
-    }, processErrorResponse);
+    }, toResponse);
   }
 
   async signBls(
@@ -525,7 +530,7 @@ export default class InternetComputerApp<
   async _getTokenRegistrySize(): Promise<ResponseTokenRegistrySize> {
     return await this.transport
       .send(this.CLA, this.INS.GET_REGISTRY_LEN, 0, 0)
-      .then(processTokenRegistrySizeResponse, processErrorResponse);
+      .then(processTokenRegistrySizeResponse, toResponse);
   }
 
   async tokenRegistry(): Promise<ResponseTokenRegistry> {
@@ -547,7 +552,7 @@ export default class InternetComputerApp<
         .send(this.CLA, this.INS.GET_TOKEN_I, i, 0)
         .then(
           (response: Buffer) => processTokenInfoResponse(response),
-          (error: any) => processErrorResponse(error),
+          (error: unknown) => toResponse(error),
         );
 
       // Type guard to check if response is ResponseTokenInfo

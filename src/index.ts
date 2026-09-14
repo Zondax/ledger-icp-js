@@ -46,9 +46,21 @@ import {
 export * from "./types";
 export { SIGN_VALUES_P2 } from "./consts";
 
-export default class InternetComputerApp extends GenericApp {
+/**
+ * Generic in the transport so `app.transport` keeps the caller's own type.
+ *
+ * `BaseApp` declares `readonly transport: LedgerTransport`, so without this the widened
+ * constructor would narrow the inherited field as a side effect and `app.transport.close()`
+ * -- fine today -- would stop compiling. Re-declaring it as `T`, inferred from the argument,
+ * keeps every member of whatever was passed in: hw-transport's and a DMK transport's alike.
+ */
+export default class InternetComputerApp<
+  T extends LedgerTransport = LedgerTransport,
+> extends GenericApp {
+  declare readonly transport: T;
+
   readonly INS!: ICPIns;
-  constructor(transport: LedgerTransport) {
+  constructor(transport: T) {
     if (transport == null) throw new Error("Transport has not been defined");
 
     const params: ConstructorParams = {

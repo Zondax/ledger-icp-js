@@ -19,6 +19,9 @@ import {
   type ICPIns,
   type TokenInfo,
   type ResponseAddress,
+  type ResponseVersion,
+  type ResponseAppInfo,
+  type ResponseDeviceInfo,
   type ResponseSign,
   type ResponseSignUpdateCall,
   type ResponseTokenRegistry,
@@ -30,21 +33,34 @@ import GenericApp, {
   errorCodeToString,
   LedgerError,
   PAYLOAD_TYPE,
-  processErrorResponse,
-  type Transport,
+  ResponseError,
+  type LedgerTransport,
 } from "@zondax/ledger-js";
 import {
   processGetAddrResponse,
   processTokenRegistrySizeResponse,
   processTokenInfoResponse,
+  toResponse,
 } from "./helper";
 
 export * from "./types";
 export { SIGN_VALUES_P2 } from "./consts";
 
-export default class InternetComputerApp extends GenericApp {
+/**
+ * Generic in the transport so `app.transport` keeps the caller's own type.
+ *
+ * `BaseApp` declares `readonly transport: LedgerTransport`, so without this the widened
+ * constructor would narrow the inherited field as a side effect and `app.transport.close()`
+ * -- fine today -- would stop compiling. Re-declaring it as `T`, inferred from the argument,
+ * keeps every member of whatever was passed in: hw-transport's and a DMK transport's alike.
+ */
+export default class InternetComputerApp<
+  T extends LedgerTransport = LedgerTransport,
+> extends GenericApp {
+  declare readonly transport: T;
+
   readonly INS!: ICPIns;
-  constructor(transport: Transport) {
+  constructor(transport: T) {
     if (transport == null) throw new Error("Transport has not been defined");
 
     const params: ConstructorParams = {
@@ -70,6 +86,83 @@ export default class InternetComputerApp extends GenericApp {
     super(transport, params);
   }
 
+  /**
+   * Returns the version with `returnCode` / `errorMessage`, as this SDK always has.
+   *
+   * BaseApp 1.x throws a ResponseError on failure and returns a bare version on success.
+   * This SDK's contract -- relied on by its zemu tests and by dfinity's hardware-wallet-cli
+   * -- is that both paths resolve to a value carrying `returnCode`. Restored here.
+   */
+  async getVersion(): Promise<ResponseVersion> {
+    try {
+      const version = await super.getVersion();
+      return {
+        ...version,
+        returnCode: LedgerError.NoErrors,
+        errorMessage: errorCodeToString(LedgerError.NoErrors),
+      };
+    } catch (e) {
+      return toResponse(e);
+    }
+  }
+
+  /**
+   * Returns app info with `returnCode` / `errorMessage`, as this SDK always has.
+   *
+   * One special case is preserved from the 0.2.x contract: an unrecognised format ID used
+   * to come back as `returnCode: 0x9001`. BaseApp 1.x throws a ResponseError
+   * (TechnicalProblem) for it instead, so that is mapped back to the historical code.
+   */
+  async appInfo(): Promise<ResponseAppInfo> {
+    try {
+      const info = await super.appInfo();
+      return {
+        ...info,
+        returnCode: LedgerError.NoErrors,
+        errorMessage: errorCodeToString(LedgerError.NoErrors),
+      };
+    } catch (e) {
+      // ledger-js attaches no structured marker to this one -- it throws
+      // `ResponseError(TechnicalProblem, 'Format ID not recognized')`, so the message text
+      // is the only thing telling it apart from any other technical problem. Guard on the
+      // code too, and note that a reword upstream turns this back into a plain 0x6F00.
+      if (
+        e instanceof ResponseError &&
+        e.returnCode === LedgerError.TechnicalProblem &&
+        e.errorMessage === "Format ID not recognized"
+      ) {
+        return { returnCode: 0x9001, errorMessage: e.errorMessage };
+      }
+      return toResponse(e);
+    }
+  }
+
+  /**
+   * Returns device info with `returnCode` / `errorMessage`, as this SDK always has.
+   *
+   * `0x6e00` means the command was sent while an app was open rather than the dashboard.
+   * The 0.2.x contract returned it as a value with a specific message; BaseApp 1.x throws
+   * it, so it is mapped back here with the same wording.
+   */
+  async deviceInfo(): Promise<ResponseDeviceInfo> {
+    try {
+      const info = await super.deviceInfo();
+      return {
+        ...info,
+        returnCode: LedgerError.NoErrors,
+        errorMessage: errorCodeToString(LedgerError.NoErrors),
+      };
+    } catch (e) {
+      if (e instanceof ResponseError && e.returnCode === 0x6e00) {
+        return {
+          returnCode: 0x6e00,
+          errorMessage: "This command is only available in the Dashboard",
+        };
+      }
+      return toResponse(e);
+    }
+  }
+
   async getAddressAndPubKey(path: string): Promise<ResponseAddress> {
     const serializedPath = this.serializePath(path);
     return await this.transport
@@ -81,7 +174,7 @@ export default class InternetComputerApp extends GenericApp {
         serializedPath,
         [0x9000],
       )
-      .then(processGetAddrResponse, processErrorResponse);
+      .then(processGetAddrResponse, toResponse);
   }
 
   async showAddressAndPubKey(path: string): Promise<ResponseAddress> {
@@ -96,10 +189,18 @@ export default class InternetComputerApp extends GenericApp {
         serializedPath,
         [LedgerError.NoErrors],
       )
-      .then(processGetAddrResponse, processErrorResponse);
+      .then(processGetAddrResponse, toResponse);
   }
 
-  async signSendChunk(
+  /**
+   * Sends one chunk of a signing payload.
+   *
+   * Renamed from `signSendChunk` at the `@zondax/ledger-js` 1.x upgrade: BaseApp gained a
+   * `protected signSendChunk(ins, chunkIdx, chunkNum, chunk)` of its own, and this method
+   * takes different arguments and returns a different shape, so the names collided. The
+   * behaviour here is unchanged.
+   */
+  async signSendChunkTx(
     chunkIdx: number,
     chunkNum: number,
     chunk: Buffer,
@@ -158,7 +259,7 @@ export default class InternetComputerApp extends GenericApp {
           returnCode,
           errorMessage,
         };
-      }, processErrorResponse);
+      }, toResponse);
   }
 
   async sign(
@@ -167,7 +268,7 @@ export default class InternetComputerApp extends GenericApp {
     txtype: number,
   ): Promise<ResponseSign> {
     const chunks = this.prepareChunks(path, message);
-    return await this.signSendChunk(
+    return await this.signSendChunkTx(
       1,
       chunks.length,
       chunks[0],
@@ -181,7 +282,7 @@ export default class InternetComputerApp extends GenericApp {
 
       for (let i = 1; i < chunks.length; i += 1) {
         // eslint-disable-next-line no-await-in-loop
-        result = await this.signSendChunk(
+        result = await this.signSendChunkTx(
           1 + i,
           chunks.length,
           chunks[i],
@@ -193,7 +294,7 @@ export default class InternetComputerApp extends GenericApp {
         }
       }
       return result;
-    }, processErrorResponse);
+    }, toResponse);
   }
 
   async signSendChunkUpdateCall(
@@ -254,7 +355,7 @@ export default class InternetComputerApp extends GenericApp {
           returnCode,
           errorMessage,
         };
-      }, processErrorResponse);
+      }, toResponse);
   }
 
   async signUpdateCall(
@@ -272,7 +373,7 @@ export default class InternetComputerApp extends GenericApp {
     request.copy(message, 8 + checkStatus.byteLength);
     console.log(message.toString("hex"));
     const chunks = this.prepareChunks(path, message);
-    return await this.signSendChunk(
+    return await this.signSendChunkTx(
       1,
       chunks.length,
       chunks[0],
@@ -297,7 +398,7 @@ export default class InternetComputerApp extends GenericApp {
         }
       }
       return result;
-    }, processErrorResponse);
+    }, toResponse);
   }
 
   async sendChunk(
@@ -331,7 +432,7 @@ export default class InternetComputerApp extends GenericApp {
           returnCode,
           errorMessage,
         };
-      }, processErrorResponse);
+      }, toResponse);
   }
 
   async sendData(
@@ -361,7 +462,7 @@ export default class InternetComputerApp extends GenericApp {
         }
         return result;
       },
-      processErrorResponse,
+      toResponse,
     );
   }
 
@@ -370,7 +471,7 @@ export default class InternetComputerApp extends GenericApp {
     data: string,
   ): Promise<ResponseSign> {
     const chunks = this.prepareChunks(path, Buffer.from(data, "hex"));
-    return await this.signSendChunk(
+    return await this.signSendChunkTx(
       1,
       chunks.length,
       chunks[0],
@@ -383,7 +484,7 @@ export default class InternetComputerApp extends GenericApp {
       };
       for (let i = 1; i < chunks.length; i += 1) {
         // eslint-disable-next-line no-await-in-loop
-        result = await this.signSendChunk(
+        result = await this.signSendChunkTx(
           1 + i,
           chunks.length,
           chunks[i],
@@ -395,7 +496,7 @@ export default class InternetComputerApp extends GenericApp {
         }
       }
       return result;
-    }, processErrorResponse);
+    }, toResponse);
   }
 
   async signBls(
@@ -429,7 +530,7 @@ export default class InternetComputerApp extends GenericApp {
   async _getTokenRegistrySize(): Promise<ResponseTokenRegistrySize> {
     return await this.transport
       .send(this.CLA, this.INS.GET_REGISTRY_LEN, 0, 0)
-      .then(processTokenRegistrySizeResponse, processErrorResponse);
+      .then(processTokenRegistrySizeResponse, toResponse);
   }
 
   async tokenRegistry(): Promise<ResponseTokenRegistry> {
@@ -451,7 +552,7 @@ export default class InternetComputerApp extends GenericApp {
         .send(this.CLA, this.INS.GET_TOKEN_I, i, 0)
         .then(
           (response: Buffer) => processTokenInfoResponse(response),
-          (error: any) => processErrorResponse(error),
+          (error: unknown) => toResponse(error),
         );
 
       // Type guard to check if response is ResponseTokenInfo

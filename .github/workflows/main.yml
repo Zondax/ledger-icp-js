@@ -24,11 +24,16 @@ jobs:
           submodules: true
       - name: Install node
         uses: actions/setup-node@v4
+        with:
+          # @zondax/ledger-js 2.0.0 requires Node 20+. Matches .mise.toml.
+          node-version: 22
       - name: Install dependencies
         run: yarn install
       - name: Run linter
         run: yarn lint
-      - name: Run formatter
-        run: yarn format
+      - name: Check formatting
+        run: yarn format:check
       - name: Build
         run: yarn build
+      - name: Run tests
+        run: yarn test
